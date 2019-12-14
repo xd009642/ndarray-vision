@@ -1,10 +1,13 @@
+use crate::core::*;
 use crate::processing::conv::ConvolutionExt;
 use ndarray::{prelude::*, s, DataMut};
 use std::ops::Fn;
 
 #[derive(Debug, Clone)]
 pub struct Gradient {
+    /// Magnitude of the gradient
     magnitude: Array2<f64>,
+    /// Angle of the gradient
     angle: Array2<f64>,
 }
 
@@ -21,15 +24,22 @@ pub enum GradientType {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum HogType {
+    /// Use a rectangular region to work out the histogram
     Rectangular,
-    Circular,
+    /// Use a radial region to work out the histogram
+    Radial,
 }
 
 pub struct HistogramOfGradientsBuilder {
+    /// Method used to calculate the image gradients
     gradient: Option<GradientType>,
+    /// Binning method for the histograms
     hog_type: Option<HogType>,
+    /// Number of orientations in the historgram
     orientations: Option<usize>,
+    /// Number of pixels in a cell
     cell_width: Option<usize>,
+    /// Width of an NxN block of cells
     block_width: Option<usize>,
 }
 
@@ -42,7 +52,8 @@ pub struct HistogramOfGradientsExtractor {
 }
 
 impl GradientType {
-    pub fn get_gradient<T>(&self, data: &ArrayBase<T, Ix3>) -> Gradient
+    /// Calculate the gradient for the image data
+    pub fn run<T>(&self, data: &ArrayBase<T, Ix3>) -> Gradient
     where
         T: DataMut<Elem = f64>,
     {
@@ -151,10 +162,17 @@ impl HistogramOfGradientsBuilder {
 }
 
 impl HistogramOfGradientsExtractor {
-    pub fn get_features<T>(&self, image: &ArrayBase<T, Ix3>) -> Array2<f64>
+    pub fn get_features<T>(&self, image: &ImageBase<T, Gray>) -> Array2<f64>
     where
         T: DataMut<Elem = f64>,
     {
+        let grad = self.gradient.run(&image.data);
+        // Binning
+
+        // descriptor blocks
+
+        // block normalisation
+
         unimplemented!()
     }
 }
