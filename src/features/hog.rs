@@ -1,6 +1,7 @@
 use crate::core::*;
 use crate::processing::conv::ConvolutionExt;
 use ndarray::{prelude::*, s, DataMut};
+use std::f64::consts::PI;
 use std::ops::Fn;
 
 #[derive(Debug, Clone)]
@@ -162,17 +163,47 @@ impl HistogramOfGradientsBuilder {
 }
 
 impl HistogramOfGradientsExtractor {
-    pub fn get_features<T>(&self, image: &ImageBase<T, Gray>) -> Array2<f64>
+    pub fn get_features<T>(&self, image: &ImageBase<T, Gray>) -> Array1<f64>
     where
         T: DataMut<Elem = f64>,
     {
+        // You can use number of cells and orientations to get feature vector length
+        let h_cells = image.cols() / self.cell_width;
+        let v_cells = image.rows() / self.cell_width;
+        let mut result = Array3::zeros((v_cells, h_cells, self.orientations));
+        let vec_length = h_cells * v_cells * self.orientations;
+
         let grad = self.gradient.run(&image.data);
+        let delta = (2.0 * PI) / (self.orientations as f64);
         // Binning
+        for r in 0..h_cells {
+            for c in 0..v_cells {
+                let r_start = r * self.cell_width;
+                let r_end = r_start + self.cell_width;
+                let c_start = c * self.cell_width;
+                let c_end = c_start + self.cell_width;
+                for (a, m) in grad
+                    .angle
+                    .slice(s![r_start..r_end, c_start..c_end])
+                    .iter()
+                    .zip(
+                        grad.magnitude
+                            .slice(s![r_start..r_end, c_start..c_end])
+                            .iter(),
+                    )
+                {
+                    let bucket = ((a + PI) / delta).floor() as usize;
+                    if let Some(v) = result.get_mut((r, c, bucket)) {
+                        *v += m;
+                    }
+                }
+            }
+        }
 
         // descriptor blocks
 
         // block normalisation
 
-        unimplemented!()
+        ArrayView1::from(result.as_slice().unwrap()).to_owned()
     }
 }
