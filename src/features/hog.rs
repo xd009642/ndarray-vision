@@ -23,19 +23,9 @@ pub enum GradientType {
     Custom(Box<dyn Fn(ArrayView<f64, Ix3>) -> Gradient>),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum HogType {
-    /// Use a rectangular region to work out the histogram
-    Rectangular,
-    /// Use a radial region to work out the histogram
-    Radial,
-}
-
 pub struct HistogramOfGradientsBuilder {
     /// Method used to calculate the image gradients
     gradient: Option<GradientType>,
-    /// Binning method for the histograms
-    hog_type: Option<HogType>,
     /// Number of orientations in the historgram
     orientations: Option<usize>,
     /// Number of pixels in a cell
@@ -46,7 +36,6 @@ pub struct HistogramOfGradientsBuilder {
 
 pub struct HistogramOfGradientsExtractor {
     gradient: GradientType,
-    hog_type: HogType,
     orientations: usize,
     cell_width: usize,
     block_width: usize,
@@ -110,10 +99,6 @@ impl HistogramOfGradientsBuilder {
             Some(g) => g,
             None => GradientType::Full,
         };
-        let hog_type = match self.hog_type {
-            Some(h) => h,
-            None => HogType::Rectangular,
-        };
         let orientations = match self.orientations {
             Some(o) => o,
             None => 9,
@@ -129,7 +114,6 @@ impl HistogramOfGradientsBuilder {
 
         HistogramOfGradientsExtractor {
             gradient,
-            hog_type,
             orientations,
             cell_width,
             block_width,
@@ -138,11 +122,6 @@ impl HistogramOfGradientsBuilder {
 
     pub fn gradient(mut self, g: GradientType) -> Self {
         self.gradient = Some(g);
-        self
-    }
-
-    pub fn hog_type(mut self, h: HogType) -> Self {
-        self.hog_type = Some(h);
         self
     }
 
@@ -167,13 +146,20 @@ impl HistogramOfGradientsExtractor {
     where
         T: DataMut<Elem = f64>,
     {
-        // You can use number of cells and orientations to get feature vector length
-        let h_cells = image.cols() / self.cell_width;
-        let v_cells = image.rows() / self.cell_width;
-        let mut result = Array3::zeros((v_cells, h_cells, self.orientations));
-        let vec_length = h_cells * v_cells * self.orientations;
-
         let grad = self.gradient.run(&image.data);
+        let mut histograms = self.create_histograms(image.rows(), image.cols(), &grad);
+        // descriptor blocks
+
+        // block normalisation
+
+        ArrayView1::from(histograms.as_slice().unwrap()).to_owned()
+    }
+
+    fn create_histograms(&self, rows: usize, cols: usize, grad: &Gradient) -> Array3<f64> {
+        let h_cells = cols / self.cell_width;
+        let v_cells = rows / self.cell_width;
+        let mut result = Array3::zeros((v_cells, h_cells, self.orientations));
+
         let delta = (2.0 * PI) / (self.orientations as f64);
         // Binning
         for r in 0..h_cells {
@@ -199,11 +185,6 @@ impl HistogramOfGradientsExtractor {
                 }
             }
         }
-
-        // descriptor blocks
-
-        // block normalisation
-
-        ArrayView1::from(result.as_slice().unwrap()).to_owned()
+        result
     }
 }
