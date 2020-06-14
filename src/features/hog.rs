@@ -147,12 +147,18 @@ impl HistogramOfGradientsExtractor {
         T: DataMut<Elem = f64>,
     {
         let grad = self.gradient.run(&image.data);
-        let mut histograms = self.create_histograms(image.rows(), image.cols(), &grad);
-        // descriptor blocks
+        let histograms = self.create_histograms(image.rows(), image.cols(), &grad);
+        // descriptor blocks and normalisation
+        let mut feature_vector = Vec::new();
+        for window in histograms.windows((self.block_width, self.block_width, self.orientations)) {
+            // turn window into block and normalise
+            // L2 norm by default
+            let norm = window.iter().map(|x| x.powi(2)).sum::<f64>().sqrt();
+            let mut block = window.iter().map(|v| v / norm).collect::<Vec<f64>>();
+            feature_vector.append(&mut block);
+        }
 
-        // block normalisation
-
-        ArrayView1::from(histograms.as_slice().unwrap()).to_owned()
+        feature_vector.into()
     }
 
     fn create_histograms(&self, rows: usize, cols: usize, grad: &Gradient) -> Array3<f64> {
