@@ -23,6 +23,7 @@ pub enum GradientType {
     Custom(Box<dyn Fn(ArrayView<f64, Ix3>) -> Gradient>),
 }
 
+#[derive(Default)]
 pub struct HistogramOfGradientsBuilder {
     /// Method used to calculate the image gradients
     gradient: Option<GradientType>,
@@ -142,6 +143,11 @@ impl HistogramOfGradientsBuilder {
 }
 
 impl HistogramOfGradientsExtractor {
+    /// Start creating a hog extractor
+    pub fn create() -> HistogramOfGradientsBuilder {
+        Default::default()
+    }
+
     pub fn get_features<T>(&self, image: &ImageBase<T, Gray>) -> Array1<f64>
     where
         T: DataMut<Elem = f64>,
