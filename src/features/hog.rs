@@ -2,7 +2,6 @@ use crate::core::*;
 use crate::processing::conv::ConvolutionExt;
 use ndarray::{prelude::*, s, DataMut};
 use std::f64::consts::PI;
-use std::ops::Fn;
 
 #[derive(Debug, Clone)]
 pub struct Gradient {
@@ -12,21 +11,8 @@ pub struct Gradient {
     angle: Array2<f64>,
 }
 
-pub enum GradientType {
-    /// Horizontal gradients only [-1, 0, 1]
-    Horizontal,
-    /// Vertical gradients only [-1, 0, 1]^T
-    Vertical,
-    /// Vertical and Horizontal gradients f(Image, Horizontal) + f(Image, Vertical)
-    Full,
-    /// Specify a single convolution kernel to apply to the image
-    Custom(Box<dyn Fn(ArrayView<f64, Ix3>) -> Gradient>),
-}
-
 #[derive(Default)]
 pub struct HistogramOfGradientsBuilder {
-    /// Method used to calculate the image gradients
-    gradient: Option<GradientType>,
     /// Number of orientations in the historgram
     orientations: Option<usize>,
     /// Number of pixels in a cell
@@ -36,70 +22,40 @@ pub struct HistogramOfGradientsBuilder {
 }
 
 pub struct HistogramOfGradientsExtractor {
-    gradient: GradientType,
     orientations: usize,
     cell_width: usize,
     block_width: usize,
 }
 
-impl GradientType {
-    /// Calculate the gradient for the image data
-    pub fn run<T>(&self, data: &ArrayBase<T, Ix3>) -> Gradient
-    where
-        T: DataMut<Elem = f64>,
-    {
-        match self {
-            Self::Horizontal => {
-                let w = vec![-1.0, 0.0, 1.0];
-                let hor: Array3<f64> = Array3::from_shape_vec((1, 3, 1), w).unwrap();
-                let mag = data
-                    .conv2d(hor.view())
-                    .unwrap()
-                    .slice(s![.., .., 0])
-                    .to_owned();
-                let dim = mag.dim();
-                Gradient {
-                    magnitude: mag,
-                    angle: Array::zeros(dim),
-                }
-            }
-            Self::Vertical => {
-                let w = vec![-1.0, 0.0, 1.0];
-                let ver: Array3<f64> = Array3::from_shape_vec((3, 1, 1), w).unwrap();
-                let mag = data
-                    .conv2d(ver.view())
-                    .unwrap()
-                    .slice(s![.., .., 0])
-                    .to_owned();
-                let dim = mag.dim();
-                Gradient {
-                    magnitude: mag,
-                    angle: Array::zeros(dim),
-                }
-            }
-            Self::Full => {
-                let w = vec![-1.0, 0.0, 1.0];
-                let hor: Array3<f64> = Array3::from_shape_vec((1, 3, 1), w.clone()).unwrap();
-                let ver: Array3<f64> = Array3::from_shape_vec((3, 1, 1), w).unwrap();
-                let mut magnitude = hor.slice(s![.., .., 0]).mapv(|x| x.powi(2))
-                    + ver.slice(s![.., .., 0]).mapv(|x| x.powi(2));
-                magnitude.mapv_inplace(|x| x.sqrt());
+fn get_image_gradients<T>(data: &ArrayBase<T, Ix3>) -> Gradient
+where
+    T: DataMut<Elem = f64>,
+{
+    let w = vec![-1.0, 0.0, 1.0];
+    let hor: ArrayView3<f64> = ArrayView3::from_shape((1, 3, 1), &w).unwrap();
+    let mut h_mag = data
+        .conv2d(hor)
+        .unwrap()
+        .slice_mut(s![.., .., 0])
+        .to_owned();
+    h_mag.mapv_inplace(|x| x.powi(2));
 
-                let mut angle = (ver / hor).slice(s![.., .., 0]).to_owned();
-                angle.mapv_inplace(|x| x.atan());
-                Gradient { magnitude, angle }
-            }
-            Self::Custom(f) => f(data.view()),
-        }
-    }
+    let ver: ArrayView3<f64> = ArrayView3::from_shape((3, 1, 1), &w).unwrap();
+    let mut v_mag = data
+        .conv2d(ver)
+        .unwrap()
+        .slice_mut(s![.., .., 0])
+        .to_owned();
+    v_mag.mapv_inplace(|x| x.powi(2));
+
+    let magnitude = &h_mag + &v_mag;
+    let mut angle = (&v_mag / &h_mag).to_owned();
+    angle.mapv_inplace(|x| x.atan());
+    Gradient { magnitude, angle }
 }
 
 impl HistogramOfGradientsBuilder {
     pub fn build(self) -> HistogramOfGradientsExtractor {
-        let gradient = match self.gradient {
-            Some(g) => g,
-            None => GradientType::Full,
-        };
         let orientations = match self.orientations {
             Some(o) => o,
             None => 9,
@@ -114,16 +70,10 @@ impl HistogramOfGradientsBuilder {
         };
 
         HistogramOfGradientsExtractor {
-            gradient,
             orientations,
             cell_width,
             block_width,
         }
-    }
-
-    pub fn gradient(mut self, g: GradientType) -> Self {
-        self.gradient = Some(g);
-        self
     }
 
     pub fn orientations(mut self, o: usize) -> Self {
@@ -152,10 +102,12 @@ impl HistogramOfGradientsExtractor {
     where
         T: DataMut<Elem = f64>,
     {
-        let grad = self.gradient.run(&image.data);
+        let grad = get_image_gradients(&image.data);
         let histograms = self.create_histograms(image.rows(), image.cols(), &grad);
         // descriptor blocks and normalisation
         let mut feature_vector = Vec::new();
+        let vec_len = self.feature_len(self.cell_dim((image.rows(), image.cols())));
+        feature_vector.reserve(vec_len);
         for window in histograms.windows((self.block_width, self.block_width, self.orientations)) {
             // turn window into block and normalise
             // L2 norm by default
@@ -167,9 +119,22 @@ impl HistogramOfGradientsExtractor {
         feature_vector.into()
     }
 
+    fn block_descriptor_len(&self) -> usize {
+        self.cell_width.pow(2) * self.orientations
+    }
+
+    fn cell_dim(&self, dim: (usize, usize)) -> (usize, usize) {
+        (dim.0 / self.cell_width, dim.1 / self.cell_width)
+    }
+
+    fn feature_len(&self, cells: (usize, usize)) -> usize {
+        let blocks_wide = cells.1 - self.block_width;
+        let blocks_tall = cells.0 - self.block_width;
+        blocks_wide * blocks_tall * self.block_descriptor_len()
+    }
+
     fn create_histograms(&self, rows: usize, cols: usize, grad: &Gradient) -> Array3<f64> {
-        let h_cells = cols / self.cell_width;
-        let v_cells = rows / self.cell_width;
+        let (v_cells, h_cells) = self.cell_dim((rows, cols));
         let mut result = Array3::zeros((v_cells, h_cells, self.orientations));
 
         let delta = (2.0 * PI) / (self.orientations as f64);
