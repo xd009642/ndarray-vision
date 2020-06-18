@@ -39,13 +39,13 @@ where
 pub struct NoPadding;
 
 /// Pad the image with a constant value
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub struct ConstantPadding<T>(T)
 where
     T: Copy;
 
 /// Pad the image with zeros. Uses ConstantPadding internally
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub struct ZeroPadding;
 
 #[inline]
