@@ -294,7 +294,7 @@ mod tests {
         let input = Image::<u8, Gray>::from_shape_data(5, 5, input_pixels);
         let expected = Image::<u8, Gray>::from_shape_data(5, 5, output_pixels);
 
-        assert_eq!(Ok(expected), input.conv2d(kern.view()));
+        assert_eq!(Ok(expected), input.conv2d_with_padding(kern.view(), &NoPadding {}));
     }
 
     #[test]

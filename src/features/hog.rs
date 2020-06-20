@@ -109,7 +109,7 @@ impl HistogramOfGradientsExtractor {
         let mut result = Image::new(image_dims.0, image_dims.1);
         let cells = self.cell_dim(image_dims);
         let cell_len = self.block_descriptor_len();
-        let centre = (self.cell_width/2, self.cell_width/2);
+        let centre = (self.cell_width / 2, self.cell_width / 2);
         let delta = self.angle_delta();
         for row in 0..cells.0 {
             for col in 0..cells.1 {
@@ -132,15 +132,19 @@ impl HistogramOfGradientsExtractor {
                     (col * self.cell_width)..((col + 1) * self.cell_width),
                     0
                 ]);
-                cell[centre] = 255; 
+                cell[centre] = 255;
                 // From the features get circle coordinate x = r*sin(theta) y = r*cos(theta)
                 // theta is angle of the bin, r is normalised magnitude * cell_width
-                // Draw a white line from end coordinate to origin 
+                // Draw a white line from end coordinate to origin
                 for a in 0..self.orientations {
                     let a_f = a as f64;
-                    let x = centre.1 as isize + (vector[a] * (self.cell_width as f64) * (delta*a_f).sin()).round() as isize;
-                    let y = centre.0 as isize + (vector[a] * (self.cell_width as f64) * (delta*a_f).cos()).round() as isize;
-                    draw_line((centre.0 as isize, centre.1 as isize ), (y, x), &mut cell);
+                    let x = centre.1 as isize
+                        + (vector[a] * (self.cell_width as f64) * (delta * a_f).sin()).round()
+                            as isize;
+                    let y = centre.0 as isize
+                        + (vector[a] * (self.cell_width as f64) * (delta * a_f).cos()).round()
+                            as isize;
+                    draw_line((centre.0 as isize, centre.1 as isize), (y, x), &mut cell);
                 }
             }
         }
@@ -161,7 +165,8 @@ impl HistogramOfGradientsExtractor {
         for window in histograms.windows((self.block_width, self.block_width, self.orientations)) {
             // turn window into block and normalise
             // L2 norm by default
-            let norm = (window.iter().map(|x| x.powi(2)).sum::<f64>() + f64::EPSILON.powi(2)).sqrt();
+            let norm =
+                (window.iter().map(|x| x.powi(2)).sum::<f64>() + f64::EPSILON.powi(2)).sqrt();
             let mut block = window.iter().map(|v| v / norm).collect::<Vec<f64>>();
             feature_vector.append(&mut block);
         }
