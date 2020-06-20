@@ -67,7 +67,12 @@ impl HistogramOfGradientsBuilder {
     }
 }
 
-fn draw_line(start: (isize, isize), end: (isize, isize), image: &mut ArrayViewMut2<u8>) {
+fn draw_line(
+    start: (isize, isize),
+    end: (isize, isize),
+    colour: u8,
+    image: &mut ArrayViewMut2<u8>,
+) {
     let dim = image.dim();
     let dim = (dim.0 as isize, dim.1 as isize);
     let deltax = (end.1 - start.1) as f64;
@@ -89,7 +94,7 @@ fn draw_line(start: (isize, isize), end: (isize, isize), image: &mut ArrayViewMu
     } else {
         for y in min(start.0, end.0)..max(start.0, end.0) {
             if start.1 > 0 && y > 0 && start.1 < dim.1 && y < dim.0 {
-                image[[y as usize, start.1 as usize]] = 255;
+                image[[y as usize, start.1 as usize]] = colour;
             }
         }
     }
@@ -111,42 +116,59 @@ impl HistogramOfGradientsExtractor {
         let cell_len = self.block_descriptor_len();
         let centre = (self.cell_width / 2, self.cell_width / 2);
         let delta = self.angle_delta();
-        for row in 0..cells.0 {
-            for col in 0..cells.1 {
-                let start = row * cells.0 + col;
-                let mut vector = features
-                    .into_iter()
-                    .skip(start * cell_len)
-                    .take(self.orientations)
-                    .copied()
-                    .collect::<Vec<_>>();
-                if vector.is_empty() {
-                    println!("This shouldn't happen if it's working...");
-                    break;
-                }
-                let norm: f64 = vector.iter().sum::<f64>() + f64::EPSILON;
-                vector.iter_mut().for_each(|x| *x /= norm);
+        let mut tl = (0, 0);
+        for chunk in features.exact_chunks(cell_len) {
+            if tl.1 > (cells.1 - self.block_width) {
+                tl.1 = 0;
+                tl.0 += 1;
+            }
+            let mut covered = 0;
+            for row in tl.0..(tl.0 + self.block_width) {
+                for col in tl.1..(tl.1 + self.block_width) {
+                    let mut cell = result.data.slice_mut(s![
+                        (row * self.cell_width)..((row + 1) * self.cell_width),
+                        (col * self.cell_width)..((col + 1) * self.cell_width),
+                        0
+                    ]);
+                    if cell[centre] == 255 {
+                        covered += self.orientations;
+                        continue;
+                    }
 
-                let mut cell = result.data.slice_mut(s![
-                    (row * self.cell_width)..((row + 1) * self.cell_width),
-                    (col * self.cell_width)..((col + 1) * self.cell_width),
-                    0
-                ]);
-                cell[centre] = 255;
-                // From the features get circle coordinate x = r*sin(theta) y = r*cos(theta)
-                // theta is angle of the bin, r is normalised magnitude * cell_width
-                // Draw a white line from end coordinate to origin
-                for a in 0..self.orientations {
-                    let a_f = a as f64;
-                    let x = centre.1 as isize
-                        + (vector[a] * (self.cell_width as f64) * (delta * a_f).sin()).round()
-                            as isize;
-                    let y = centre.0 as isize
-                        + (vector[a] * (self.cell_width as f64) * (delta * a_f).cos()).round()
-                            as isize;
-                    draw_line((centre.0 as isize, centre.1 as isize), (y, x), &mut cell);
+                    let mut vector = chunk
+                        .iter()
+                        .skip(covered)
+                        .take(self.orientations)
+                        .copied()
+                        .collect::<Vec<_>>();
+                    covered += self.orientations;
+                    if vector.is_empty() {
+                        break;
+                    }
+                    let norm: f64 = vector.iter().sum::<f64>() + f64::EPSILON;
+                    vector.iter_mut().for_each(|x| *x /= norm);
+
+                    // From the features get circle coordinate x = r*sin(theta) y = r*cos(theta)
+                    // theta is angle of the bin, r is normalised magnitude * cell_width
+                    // Draw a white line from end coordinate to origin
+                    for a in 0..self.orientations {
+                        let a_f = a as f64;
+                        let x = centre.1 as isize
+                            + ((self.cell_width as f64) * (delta * a_f).sin()).round() as isize;
+                        let y = centre.0 as isize
+                            + ((self.cell_width as f64) * (delta * a_f).cos()).round() as isize;
+                        let colour = (vector[a] * 255.0).round() as u8;
+                        draw_line(
+                            (centre.0 as isize, centre.1 as isize),
+                            (y, x),
+                            colour,
+                            &mut cell,
+                        );
+                    }
+                    cell[centre] = 255;
                 }
             }
+            tl.1 += 1;
         }
         result
     }
