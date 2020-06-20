@@ -78,7 +78,6 @@ where
         h_deriv.mapv_inplace(|x| x + T::epsilon());
         let mut magnitude = h_deriv.mapv(|x| x.powi(2)) + v_deriv.mapv(|x| x.powi(2));
         magnitude.mapv_inplace(|x| x.sqrt());
-        magnitude.mapv_inplace(|x| if x > T::one() { T::one() } else { x });
 
         let mut rotation = v_deriv / h_deriv;
         rotation.mapv_inplace(|x| x.atan());

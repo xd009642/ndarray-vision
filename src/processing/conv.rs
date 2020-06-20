@@ -91,14 +91,14 @@ where
     type Output = Array<T, Ix3>;
 
     fn conv2d<B: Data<Elem = T>>(&self, kernel: ArrayBase<B, Ix3>) -> Result<Self::Output, Error> {
-        self.conv2d_with_padding(kernel, &NoPadding {})
+        self.conv2d_with_padding(kernel, &ZeroPadding {})
     }
 
     fn conv2d_inplace<B: Data<Elem = T>>(
         &mut self,
         kernel: ArrayBase<B, Ix3>,
     ) -> Result<(), Error> {
-        self.assign(&self.conv2d_with_padding(kernel, &NoPadding {})?);
+        self.assign(&self.conv2d_with_padding(kernel, &ZeroPadding {})?);
         Ok(())
     }
 
