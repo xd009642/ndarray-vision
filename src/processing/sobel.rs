@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::processing::*;
 use core::ops::Neg;
-use ndarray::{prelude::*, s, DataMut, OwnedRepr};
+use ndarray::{prelude::*, s, DataMut, OwnedRepr, Zip};
 use num_traits::{cast::FromPrimitive, real::Real, Num, NumAssignOps};
 use std::marker::Sized;
 
@@ -79,9 +79,12 @@ where
         let mut magnitude = h_deriv.mapv(|x| x.powi(2)) + v_deriv.mapv(|x| x.powi(2));
         magnitude.mapv_inplace(|x| x.sqrt());
 
-        let mut rotation = v_deriv / h_deriv;
-        rotation.mapv_inplace(|x| x.atan());
-
+        let dim = h_deriv.dim();
+        let mut rotation = unsafe { Array3::uninitialized((dim.0, dim.1, dim.2)) };
+        Zip::from(&mut rotation)
+            .and(&h_deriv)
+            .and(&v_deriv)
+            .apply(|r, &h, &v| *r = v.atan2(h));
         Ok((magnitude, rotation))
     }
 }
