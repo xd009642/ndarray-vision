@@ -74,8 +74,7 @@ where
     }
 
     fn full_sobel(&self) -> Result<(Self::Output, Self::Output), Error> {
-        let (mut h_deriv, v_deriv) = get_edge_images(self)?;
-        h_deriv.mapv_inplace(|x| x + T::epsilon());
+        let (h_deriv, v_deriv) = get_edge_images(self)?;
         let mut magnitude = h_deriv.mapv(|x| x.powi(2)) + v_deriv.mapv(|x| x.powi(2));
         magnitude.mapv_inplace(|x| x.sqrt());
 
