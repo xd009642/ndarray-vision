@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 ### Added
+- HoG feature extractor
 
 ### Changed
+- Fixed full sobel angle calculation to use atan2 instead of atan
 
 ### Removed
 

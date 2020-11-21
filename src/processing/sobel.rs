@@ -107,3 +107,9 @@ where
             .map(|(m, r)| (Image::from_data(m), Image::from_data(r)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    
+    
+}
