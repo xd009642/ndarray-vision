@@ -11,7 +11,7 @@ categories = ["science", "science::robotics", "multimedia", "multimedia::images"
 edition = "2018"
 
 [dependencies]
-ndarray = { version = "0.13", default-features = false }
+ndarray = { version = "0.15", default-features = false }
 ndarray-stats = { version = "0.3", default-features = false }
 ndarray-linalg = { version = "0.12", default-features = false }
 noisy_float = { version = "0.1", default-features = false }
