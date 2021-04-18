@@ -1,0 +1,34 @@
+name: Build
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version:
+          - stable
+          - beta
+          - nightly 
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.version }}
+          override: true
+          components: rustfmt
+      - name: build
+        run: |
+          cargo install cargo-all-features
+          cargo build-all-features
+      - name: test
+        run: cargo test  --all-features
+      - name: check formatting
+        run: cargo fmt -- --check
