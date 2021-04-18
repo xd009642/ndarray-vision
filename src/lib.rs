@@ -31,6 +31,7 @@ pub mod core;
 #[cfg(feature="enhancement")]
 pub mod enhancement;
 /// Feature extraction
+#[cfg(feature="features")]
 pub mod features;
 /// Image formats - encoding and decoding images from bytes for saving and
 /// loading

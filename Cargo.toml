@@ -11,8 +11,9 @@ categories = ["science", "science::robotics", "multimedia", "multimedia::images"
 edition = "2018"
 
 [features]
-default = ["enhancement", "format", "morphology", "processing", "transform"]
+default = ["enhancement", "features", "format", "morphology", "processing", "transform"]
 enhancement = []
+features = ["processing"]
 format = []
 morphology = []
 processing = []
